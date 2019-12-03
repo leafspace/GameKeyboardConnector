@@ -1,0 +1,10 @@
+; KeyHook.def : Declares the module parameters for the DLL.
+
+LIBRARY      "KeyHook"
+
+LIBRARY      "KeyHook"
+DESCRIPTION 'KeyHook Windows Dynamic Link Library'
+EXPORTS
+; Explicit exports can Go here
+EnableKeyboardCapture @1
+DisableKeyboardCapture @2
