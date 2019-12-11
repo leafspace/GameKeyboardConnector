@@ -8,9 +8,9 @@
 #define new DEBUG_NEW
 #endif
 
+HWND g_hTarget = NULL;
 
 // 用于应用程序“关于”菜单项的 CAboutDlg 对话框
-
 class CAboutDlg : public CDialogEx
 {
 public:
@@ -41,11 +41,6 @@ void CAboutDlg::DoDataExchange(CDataExchange* pDX)
 BEGIN_MESSAGE_MAP(CAboutDlg, CDialogEx)
 END_MESSAGE_MAP()
 
-
-// CGameKeyboardConnectorDlg 对话框
-
-
-
 CGameKeyboardConnectorDlg::CGameKeyboardConnectorDlg(CWnd* pParent /*=nullptr*/)
 	: CDialogEx(IDD_GAMEKEYBOARDCONNECTOR_DIALOG, pParent)
 {
@@ -58,9 +53,14 @@ void CGameKeyboardConnectorDlg::DoDataExchange(CDataExchange* pDX)
 }
 
 BEGIN_MESSAGE_MAP(CGameKeyboardConnectorDlg, CDialogEx)
+	ON_WM_DESTROY()
 	ON_WM_SYSCOMMAND()
 	ON_WM_PAINT()
 	ON_WM_QUERYDRAGICON()
+	ON_STN_CLICKED(IDC_STATIC_ICON_FINDER_TOOL, &CGameKeyboardConnectorDlg::OnStnClickedStaticIconFinderTool)
+	ON_WM_MOUSEMOVE()
+	ON_WM_LBUTTONUP()
+	ON_BN_CLICKED(IDC_BUTTON_SEND, &CGameKeyboardConnectorDlg::OnBnClickedButtonSend)
 END_MESSAGE_MAP()
 
 BOOL CGameKeyboardConnectorDlg::OnInitDialog()
@@ -101,8 +101,16 @@ BOOL CGameKeyboardConnectorDlg::OnInitDialog()
 		AfxMessageBox(_T("unload"));
 	}
 
+	SetMainWind(this->m_hWnd);
+	SetGetWindowHwndKey(VK_HOME);
 	EnableKeyboardCapture();
-	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
+
+	this->OnLoadResouse();
+	((CStatic*)GetDlgItem(IDC_STATIC_ICON_FINDER_TOOL))->SetBitmap(g_hBitmapFinderToolFilled);
+#ifdef _DEBUG
+	CreateResponseDlg();
+#endif
+	return TRUE;
 }
 
 void CGameKeyboardConnectorDlg::OnSysCommand(UINT nID, LPARAM lParam)
@@ -161,33 +169,216 @@ BOOL CGameKeyboardConnectorDlg::PreTranslateMessage(MSG* pMsg)
 	{
 		switch (pMsg->wParam)
 		{
-		case VK_F1:
-			AfxMessageBox(_T("1"));
-			return true;
-			break;
-		case VK_F2:
-			AfxMessageBox(_T("2"));
-			break;
-		case VK_F3:
-			AfxMessageBox(_T("3"));
-			break;
-		case VK_F4:
-			AfxMessageBox(_T("4"));
-			break;
-		case VK_F5:
-			AfxMessageBox(_T("D"));
-			break;
-		case VK_F6:
-			AfxMessageBox(_T("S"));
-			break;
-		//case VK_HOME:
-		//	AfxMessageBox(_T("Home"));
-		//	break;
-		//case VK_END:
-		//	AfxMessageBox(_T("End"));
-		//	break;
+		case VK_SPACE:
+		{
+		}
+		break;
 		}
 	}
 	return CDialog::PreTranslateMessage(pMsg);
 }
 
+void CGameKeyboardConnectorDlg::OnDestroy()
+{
+	::DeleteObject(this->g_hCursorSearchWindow);
+	::DeleteObject(this->g_hBitmapFinderToolFilled);
+	::DeleteObject(this->g_hBitmapFinderToolEmpty);
+}
+
+void CGameKeyboardConnectorDlg::OnStnClickedStaticIconFinderTool()
+{
+	g_bStartSearchWindow = true;
+	((CStatic*)GetDlgItem(IDC_STATIC_ICON_FINDER_TOOL))->SetBitmap(g_hBitmapFinderToolEmpty);
+	g_hCursorPrevious = SetCursor(g_hCursorSearchWindow);
+	SetCapture();
+}
+
+
+void CGameKeyboardConnectorDlg::OnMouseMove(UINT nFlags, CPoint point)
+{
+	POINT		screenpoint;
+	HWND		hwndFoundWindow = NULL;
+	CString		strTemp;
+	long		lRet = 0;
+
+	if (!g_bStartSearchWindow)
+	{
+		CDialogEx::OnMouseMove(nFlags, point);
+		return;
+	}
+	
+	g_hCursorPrevious = SetCursor(g_hCursorSearchWindow);
+	// Must use GetCursorPos() instead of calculating from "lParam".
+	GetCursorPos(&screenpoint);
+
+	// Display global positioning in the dialog box.
+	strTemp.Format(_T("%d"), screenpoint.x);
+	SetDlgItemText(IDC_STATIC_X_POS, strTemp);
+
+	strTemp.Format(_T("%d"), screenpoint.y);
+	SetDlgItemText(IDC_STATIC_Y_POS, strTemp);
+
+	// Determine the window that lies underneath the mouse cursor.
+	hwndFoundWindow = WindowFromPoint(screenpoint)->m_hWnd;
+	DisplayInfoOnFoundWindow(hwndFoundWindow);
+	if (CheckWindowValidity(hwndFoundWindow))
+	{
+		// Check first for validity.
+		HighlightFoundWindow(hwndFoundWindow);
+	}
+	g_hTarget = hwndFoundWindow;
+
+	CDialogEx::OnMouseMove(nFlags, point);
+}
+
+
+void CGameKeyboardConnectorDlg::OnLButtonUp(UINT nFlags, CPoint point)
+{
+	// TODO: 在此添加消息处理程序代码和/或调用默认值
+	g_bStartSearchWindow = false;
+	SetCursor(g_hCursorPrevious);
+	((CStatic*)GetDlgItem(IDC_STATIC_ICON_FINDER_TOOL))->SetBitmap(g_hBitmapFinderToolFilled);
+	ReleaseCapture();
+
+	/*g_hTarget = WindowFromPoint(point)->m_hWnd;
+
+	if (!::GetParent(g_hTarget) || GetDesktopWindow()->m_hWnd == ::GetParent(g_hTarget) ||
+		!(::GetWindowLong(g_hTarget, GWL_STYLE) & WS_CHILDWINDOW))
+	{
+	}
+	else
+	{
+		g_hTarget = ::GetParent(g_hTarget);
+	}
+
+	while (TRUE) {
+		HWND hWndChild = RealChildWindowFromPoint(g_hTarget, point);
+
+
+		if (hWndChild && (hWndChild != g_hTarget))
+			g_hTarget = hWndChild;
+		else
+			break;
+	}*/
+
+
+	//DisplayInfoOnFoundWindow(g_hTarget);
+	CDialogEx::OnLButtonUp(nFlags, point);
+}
+
+void CGameKeyboardConnectorDlg::OnLoadResouse(void)
+{
+	g_hRectanglePen = CreatePen(PS_SOLID, 3, RGB(256, 0, 0));
+	g_hCursorSearchWindow = LoadCursor(::AfxGetInstanceHandle(), MAKEINTRESOURCE(IDC_CURSOR_SEARCH_WINDOW));
+	g_hBitmapFinderToolFilled = LoadBitmap(::AfxGetInstanceHandle(), MAKEINTRESOURCE(IDB_BITMAP_FINDER_FILLED));
+	g_hBitmapFinderToolEmpty = LoadBitmap(::AfxGetInstanceHandle(), MAKEINTRESOURCE(IDB_BITMAP_FINDER_EMPTY));
+}
+
+void CGameKeyboardConnectorDlg::CreateResponseDlg(void)
+{
+	CreateThread(NULL, 0, ThreadRespnseDlg, this, 0, NULL);
+}
+
+bool CGameKeyboardConnectorDlg::CheckWindowValidity(HWND hWnd)
+{
+	// The window must not be NULL.
+	if (hWnd == NULL)
+	{
+		return false;
+	}
+
+	// It must also be a valid window as far as the OS is concerned.
+	if (IsWindow(hWnd) == FALSE)
+	{
+		return false;
+	}
+
+	return true;
+}
+
+void CGameKeyboardConnectorDlg::HighlightFoundWindow(HWND hWnd)
+{
+	HDC		hWindowDC;  // The DC of the found window.
+	HGDIOBJ	hPrevPen = NULL;   // Handle of the existing pen in the DC of the found window.
+	HGDIOBJ	hPrevBrush = NULL; // Handle of the existing brush in the DC of the found window.
+	RECT		rect;              // Rectangle area of the found window.
+
+	// Get the screen coordinates of the rectangle of the found window.
+	::GetWindowRect(hWnd, &rect);
+
+	// Get the window DC of the found window.
+	hWindowDC = ::GetWindowDC(hWnd);
+
+	if (hWindowDC)
+	{
+		// Select our created pen into the DC and backup the previous pen.
+		hPrevPen = ::SelectObject(hWindowDC, g_hRectanglePen);
+
+		// Select a transparent brush into the DC and backup the previous brush.
+		hPrevBrush = ::SelectObject(hWindowDC, GetStockObject(HOLLOW_BRUSH));
+
+		// Draw a rectangle in the DC covering the entire window area of the found window.
+		::Rectangle(hWindowDC, 0, 0, rect.right - rect.left, rect.bottom - rect.top);
+
+		// Reinsert the previous pen and brush into the found window's DC.
+		::SelectObject(hWindowDC, hPrevPen);
+
+		::SelectObject(hWindowDC, hPrevBrush);
+
+		// Finally release the DC.
+		::ReleaseDC(hWnd, hWindowDC);
+	}
+}
+
+void CGameKeyboardConnectorDlg::DisplayInfoOnFoundWindow(HWND hWnd)
+{
+	RECT		rect;              // Rectangle area of the found window.
+	CString		szText;
+	WCHAR		szClassName[1000];
+	long		lRet = 0;
+
+	// Get the screen coordinates of the rectangle of the found window.
+	::GetWindowRect(hWnd, &rect);
+
+	// Get the class name of the found window.
+	::GetClassNameW(hWnd, szClassName, sizeof(szClassName) - 1);
+
+	// Display some information on the found window.
+	szText.Format
+	(
+		_T("Window Handle == 0x%08X.\r\nClass Name : %s.\r\nRECT.left == %d.\r\nRECT.top == %d.\r\nRECT.right == %d.\r\nRECT.bottom == %d.\r\n"),
+		hWnd,
+		szClassName,
+		rect.left,
+		rect.top,
+		rect.right,
+		rect.bottom
+	);
+
+	SetDlgItemText(IDC_EDIT_STATUS, szText);
+}
+
+DWORD __stdcall ThreadRespnseDlg(LPVOID lpParamter)
+{
+	WinExec("KeyBoardResponse.exe", SW_SHOW);  // 打开记事本  
+	return 0;
+}
+
+
+void CGameKeyboardConnectorDlg::OnBnClickedButtonSend()
+{
+	WPARAM wParam = 50;
+	LPARAM lParam = 1;
+	CWnd* QCWnd = CWnd::FromHandle(g_hTarget);
+	if (QCWnd->GetSafeHwnd())
+	{
+		//QCWnd->ShowWindow(SW_NORMAL);
+		QCWnd->SetForegroundWindow();
+		keybd_event(wParam, 0, 0, 0);
+		Sleep(100);
+		keybd_event(wParam, 0, KEYEVENTF_KEYUP, 0);
+	}
+
+	::SendMessage(g_hTarget, WM_KICKIDLE, wParam, lParam);
+	::SendMessage(g_hTarget, WM_KEYUP, wParam, lParam);
+}

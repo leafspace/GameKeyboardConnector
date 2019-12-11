@@ -59,6 +59,7 @@ CKeyBoardResponseDlg::CKeyBoardResponseDlg(CWnd* pParent /*=nullptr*/)
 void CKeyBoardResponseDlg::DoDataExchange(CDataExchange* pDX)
 {
 	CDialog::DoDataExchange(pDX);
+	DDX_Control(pDX, IDC_EDIT_MESSAGE_RESPONSE, m_MessagEditControl);
 }
 
 BEGIN_MESSAGE_MAP(CKeyBoardResponseDlg, CDialog)
@@ -157,34 +158,65 @@ BOOL CKeyBoardResponseDlg::PreTranslateMessage(MSG* pMsg)
 {
 	if (pMsg->message == WM_KEYDOWN)
 	{
-		switch (pMsg->wParam)
+		CString strTemp;
+		if (pMsg->wParam >= 'A' && pMsg->wParam <= 'Z' ||
+			pMsg->wParam >= '0' && pMsg->wParam <= '9')
 		{
-		case VK_F1:
-			AfxMessageBox(_T("1"));
-			return true;
-			break;
-		case VK_F2:
-			AfxMessageBox(_T("2"));
-			break;
-		case VK_F3:
-			AfxMessageBox(_T("3"));
-			break;
-		case VK_F4:
-			AfxMessageBox(_T("4"));
-			break;
-		case VK_F5:
-			AfxMessageBox(_T("D"));
-			break;
-		case VK_F6:
-			AfxMessageBox(_T("S"));
-			break;
-		case VK_HOME:
-			AfxMessageBox(_T("Home"));
-			break;
-		case VK_END:
-			AfxMessageBox(_T("End"));
-			break;
+			strTemp.Format(_T("Response %c\r\n"), (char)(pMsg->wParam));
 		}
+		else if (pMsg->wParam >= VK_NUMPAD0 && pMsg->wParam <= VK_NUMPAD9)
+		{
+			strTemp.Format(_T("Response %c\r\n"), (char)(pMsg->wParam - VK_NUMPAD0 + '0'));
+		}
+		else if (pMsg->wParam >= VK_F1 && pMsg->wParam <= VK_F24)
+		{
+			int nKeyNum = pMsg->wParam - VK_F1 + 1;
+			strTemp.Format(_T("Response F%d\r\n"), nKeyNum);
+		}
+		else if (pMsg->wParam == VK_HOME || pMsg->wParam == VK_END)
+		{
+			switch (pMsg->wParam)
+			{
+			case VK_HOME:
+				strTemp.Format(_T("Response HOME\r\n"));
+				break;
+			case VK_END:
+				strTemp.Format(_T("Response END\r\n"));
+				break;
+			default:
+				break;
+			}
+		}
+		else if (pMsg->wParam == VK_UP || pMsg->wParam == VK_DOWN ||
+			pMsg->wParam == VK_LEFT || pMsg->wParam == VK_RIGHT)
+		{
+			switch (pMsg->wParam)
+			{
+			case VK_UP:
+				strTemp.Format(_T("Response UP\r\n"));
+				break;
+			case VK_DOWN:
+				strTemp.Format(_T("Response DOWN\r\n"));
+				break;
+			case VK_LEFT:
+				strTemp.Format(_T("Response LEFT\r\n"));
+				break;
+			case VK_RIGHT:
+				strTemp.Format(_T("Response RIGHT\r\n"));
+				break;
+			default:
+				break;
+			}
+		}
+		else if (pMsg->wParam == VK_SPACE)
+		{
+			strTemp.Format(_T("Response SPACE\r\n"));
+		}
+
+		this->m_strResponse += strTemp;
+		SetDlgItemText(IDC_EDIT_MESSAGE_RESPONSE, m_strResponse);
+		this->m_MessagEditControl.LineScroll(this->m_MessagEditControl.GetLineCount());
+		return TRUE;
 	}
 	return CDialog::PreTranslateMessage(pMsg);
 }
